@@ -155,6 +155,36 @@ namespace IniUtil.Tests
             Assert.AreEqual(0, ini["global"].Properties.Count);
         }
 
+        [TestMethod]
+        public void MultipleSectionsTest()
+        {
+            var ini = new IniFile();
+            ini.LoadString(MakeIniString(
+                "[Section1]",
+                "key1=val1",
+                "[Section2]",
+                "key1=val1"));
+            Assert.AreEqual(3, ini.Sections.Count);
+            Assert.AreEqual("val1", ini["Section1"]["key1"]);
+            Assert.AreEqual("val1", ini["Section2"]["key1"]);
+        }
+
+        [TestMethod]
+        [ExpectedException(typeof(InvalidDataException))]
+        public void DuplicateKeyNameInSectionTest()
+        {
+            var ini = new IniFile()
+            {
+                DuplicatedKeyNameMode = DuplicatedKeyNameMode.Abort
+            };
+            ini.LoadString(MakeIniString(
+                "[Section1]",
+                "key1=val1",
+                "key1=val2"));
+            Assert.Fail("Exception should be occurred because duplicated key name is not allowed.");
+        }
+
+
         private string MakeIniString(params string[] lines)
         {
             return string.Join(Environment.NewLine, lines);
