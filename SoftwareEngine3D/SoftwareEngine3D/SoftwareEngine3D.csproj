@@ -63,7 +63,11 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="SoftEngine.cs" />
+    <Compile Include="Camera.cs" />
+    <Compile Include="Face.cs" />
+    <Compile Include="Mesh.cs" />
+    <Compile Include="Device.cs" />
+    <Compile Include="Util.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>

@@ -10,35 +10,6 @@ using SharpDX;
 
 namespace SoftwareEngine3D
 {
-    public class Camera
-    {
-        public Vector3 Position { get; set; }
-        public Vector3 Target { get; set; }
-    }
-
-    public struct Face
-    {
-        public int A;
-        public int B;
-        public int C;
-    }
-
-    public class Mesh
-    {
-        public string Name { get; set; }
-        public Vector3[] Vertices { get; private set; }
-        public Face[] Faces { get; set; }
-        public Vector3 Position { get; set; }
-        public Vector3 Rotation { get; set; }
-
-        public Mesh(string name, int verticesCount, int facesCount)
-        {
-            Vertices = new Vector3[verticesCount];
-            Faces = new Face[facesCount];
-            Name = name;
-        }
-    }
-
     public class Device
     {
         private byte[] backBuffer;
@@ -156,18 +127,6 @@ namespace SoftwareEngine3D
             backBuffer[index4 + 2] = (byte)(color.Red * 255);
             backBuffer[index4 + 3] = (byte)(color.Alpha * 255);
         }
-
-        //public Vector2 Project(Vector3 coord, Matrix transMat)
-        //{
-        //    // Transfoming the coordinates
-        //    var point = Vector3.TransformCoordinate(coord, transMat);
-        //    // The transformed coordinates will be based on coordinate system
-        //    // starting on the center of the screen. But drawing on screen normally starts
-        //    // from top left. We then need to transform them again to have x:0, y:0 on top left.
-        //    var x = point.X * bmp.PixelWidth + bmp.PixelWidth / 2.0f;
-        //    var y = point.Y * bmp.PixelHeight + bmp.PixelHeight / 2.0f;
-        //    return new Vector2(x, y);
-        //}
 
         public void DrawPoint(Vector2 point)
         {
@@ -350,48 +309,6 @@ namespace SoftwareEngine3D
             }
         }
 
-        //public void DrawLine(Vector2 point0, Vector2 point1)
-        //{
-        //    var dist = (point1 - point0).Length();
-
-        //    // If the distance between these 2 points is less than 2 pixels,
-        //    // exit immediately.
-        //    if (dist < 2) return;
-
-        //    // Find the middle point between first & second point
-        //    var middle = point0 + (point1 - point0) / 2;
-        //    // Draw this point on screen
-        //    DrawPoint(middle);
-        //    // Recursive algorithm launched between first & middle point
-        //    // and between middle & second point
-        //    DrawLine(point0, middle);
-        //    DrawLine(middle, point1);
-        //}
-
-        //public void DrawBline(Vector2 point0, Vector2 point1)
-        //{
-        //    int x0 = (int)point0.X;
-        //    int y0 = (int)point0.Y;
-        //    int x1 = (int)point1.X;
-        //    int y1 = (int)point1.Y;
-
-        //    var dx = Math.Abs(x1 - x0);
-        //    var dy = Math.Abs(y1 - y0);
-        //    var sx = (x0 < x1) ? 1 : -1;
-        //    var sy = (y0 < y1) ? 1 : -1;
-        //    var err = dx - dy;
-
-        //    while (true)
-        //    {
-        //        DrawPoint(new Vector2(x0, y0));
-
-        //        if ((x0 == x1) && (y0 == y1)) break;
-        //        var e2 = 2 * err;
-        //        if (e2 > -dy) { err -= dy; x0 += sx; }
-        //        if (e2 < dx) { err += dx; y0 += sy; }
-        //    }
-        //}
-
         public async Task<Mesh[]> LoadJSONFileAsync(string fileName)
         {
             var meshes = new List<Mesh>();
@@ -460,35 +377,12 @@ namespace SoftwareEngine3D
                     * Matrix.Translation(mesh.Position);
                 var transformMatrix = worldMatrix * viewMatrix * projectionMatrix;
 
-                //foreach (var vertex in mesh.Vertices)
-                //{
-                //    // First, we project the 3D coordinates into the 2D space
-                //    var point = Project(vertex, transformMatrix);
-                //    // Then we can draw on screen
-                //    DrawPoint(point);
-                //}
-
-                //for (var i = 0; i < mesh.Vertices.Length - 1; i++)
-                //{
-                //    var point0 = Project(mesh.Vertices[i], transformMatrix);
-                //    var point1 = Project(mesh.Vertices[i + 1], transformMatrix);
-                //    DrawBline(point0, point1);
-                //}
-
                 var faceIndex = 0;
                 foreach (var face in mesh.Faces)
                 {
                     var vertexA = mesh.Vertices[face.A];
                     var vertexB = mesh.Vertices[face.B];
                     var vertexC = mesh.Vertices[face.C];
-
-                    //var pixelA = Project(vertexA, transformMatrix);
-                    //var pixelB = Project(vertexB, transformMatrix);
-                    //var pixelC = Project(vertexC, transformMatrix);
-
-                    //DrawBline(pixelA, pixelB);
-                    //DrawBline(pixelB, pixelC);
-                    //DrawBline(pixelC, pixelA);
 
                     var pixelA = Project(vertexA, transformMatrix);
                     var pixelB = Project(vertexB, transformMatrix);
@@ -498,30 +392,6 @@ namespace SoftwareEngine3D
                     DrawTriangle(pixelA, pixelB, pixelC, new Color4(color, color, color, 1));
                     faceIndex++;
                 }
-            }
-        }
-    }
-
-    public static class Util
-    {
-        // Copied from http://msdn.microsoft.com/en-us/library/jj155757.aspx
-        public static async Task<string> ReadTextAsync(string filePath, Encoding encoding)
-        {
-            using (FileStream sourceStream = new FileStream(filePath,
-                FileMode.Open, FileAccess.Read, FileShare.Read,
-                bufferSize: 4096, useAsync: true))
-            {
-                StringBuilder sb = new StringBuilder();
-
-                byte[] buffer = new byte[0x1000];
-                int numRead;
-                while ((numRead = await sourceStream.ReadAsync(buffer, 0, buffer.Length)) != 0)
-                {
-                    string text = encoding.GetString(buffer, 0, numRead);
-                    sb.Append(text);
-                }
-
-                return sb.ToString();
             }
         }
     }
