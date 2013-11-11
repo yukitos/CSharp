@@ -69,32 +69,10 @@ namespace SoftwareEngine3D
         {
             bmp.Lock();
 
-            unsafe
-            {
-                byte* pDst = (byte*)bmp.BackBuffer;
-                int len = backBuffer.Length;
-                fixed (byte* pSrc = backBuffer)
-                {
-                    byte* ps = pSrc;
-                    byte* pd = pDst;
+            var rect = new Int32Rect(0, 0, bmp.PixelWidth, bmp.PixelHeight);
+            bmp.WritePixels(rect, backBuffer, bmp.BackBufferStride, 0);
+            bmp.AddDirtyRect(rect);
 
-                    for (int i = 0; i < len / 4; i++)
-                    {
-                        *((int*)pd) = *((int*)ps);
-                        pd += 4;
-                        ps += 4;
-                    }
-
-                    for (int i = 0; i < len % 4; i++)
-                    {
-                        *pd = *ps;
-                        pd++;
-                        ps++;
-                    }
-                }
-            }
-
-            bmp.AddDirtyRect(new Int32Rect(0, 0, bmp.PixelWidth, bmp.PixelHeight));
             bmp.Unlock();
         }
 
