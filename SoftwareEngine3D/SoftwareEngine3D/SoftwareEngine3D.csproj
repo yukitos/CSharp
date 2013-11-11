@@ -65,9 +65,11 @@
     </ApplicationDefinition>
     <Compile Include="Camera.cs" />
     <Compile Include="Face.cs" />
+    <Compile Include="Material.cs" />
     <Compile Include="Mesh.cs" />
     <Compile Include="Device.cs" />
     <Compile Include="ScanLineData.cs" />
+    <Compile Include="Texture.cs" />
     <Compile Include="Util.cs" />
     <Compile Include="Vertex.cs" />
     <Page Include="MainWindow.xaml">
@@ -101,7 +103,9 @@
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
-    <None Include="monkey.babylon" />
+    <None Include="monkey.babylon">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
@@ -111,6 +115,11 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Suzanne.jpg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

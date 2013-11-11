@@ -38,7 +38,7 @@ namespace SoftwareEngine3D
             device = new Device(bmp);
             frontBuffer.Source = bmp;
 
-            meshes = await device.LoadJSONFileAsync(System.IO.Path.GetFullPath("..\\..\\monkey.babylon"));
+            meshes = await device.LoadJSONFileAsync(System.IO.Path.GetFullPath("monkey.babylon"));
 
             camera.Position = new Vector3(0, 0, 10.0f);
             camera.Target = Vector3.Zero;
