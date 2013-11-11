@@ -19,12 +19,10 @@ namespace SoftwareEngine3D
         private WriteableBitmap bmp;
         private readonly int renderWidth;
         private readonly int renderHeight;
-        private readonly SynchronizationContext uiContext;
 
-        public Device(WriteableBitmap bmp, SynchronizationContext uiContext)
+        public Device(WriteableBitmap bmp)
         {
             this.bmp = bmp;
-            this.uiContext = uiContext;
             renderWidth = bmp.PixelWidth;
             renderHeight = bmp.PixelHeight;
 
@@ -100,31 +98,12 @@ namespace SoftwareEngine3D
             bmp.Unlock();
         }
 
-        /// <summary>
-        /// Put a pixel on screen at a speccific X,Y coordinates.
-        /// </summary>
-        /// <param name="x"></param>
-        /// <param name="y"></param>
-        /// <param name="color"></param>
-        public void PutPixel(int x, int y, Color4 color)
-        {
-            var index = (x + y * bmp.PixelWidth) * 4;
-
-            lock (lockBuffer[index])
-            {
-                backBuffer[index] = (byte)(color.Blue * 255);
-                backBuffer[index + 1] = (byte)(color.Green * 255);
-                backBuffer[index + 2] = (byte)(color.Red * 255);
-                backBuffer[index + 3] = (byte)(color.Alpha * 255);
-            }
-        }
-
         public void PutPixel(int x, int y, float z, Color4 color)
         {
             // As we have a 1-D Array for our back buffer
             // we need to know the equivalent cell in 1-D based
             // on the 2D coordinates on screen
-            var index = (x + y * bmp.PixelWidth);
+            var index = (x + y * renderWidth);
             var index4 = index * 4;
 
             lock (lockBuffer[index])
@@ -143,11 +122,6 @@ namespace SoftwareEngine3D
             }
         }
 
-        public void DrawPoint(Vector2 point)
-        {
-            DrawPoint(point, new Color4(1.0f, 1.0f, 1.0f, 1.0f));
-        }
-
         /// <summary>
         /// Transform 3D coordinates in 2D coordinates using the transformation matrix.
         /// It also transform the same coordinates and the normal to the vertex
@@ -158,12 +132,12 @@ namespace SoftwareEngine3D
         /// <returns></returns>
         public Vertex Project(Vertex vertex, Matrix transMat, Matrix world)
         {
-            // Transforming the coordinates into 2D space
+            // transforming the coordinates into 2D space
             var point2d = Vector3.TransformCoordinate(vertex.Coordinates, transMat);
-            // Transforming the coordinates & the normal to the vertex in the 3D world
+            // transforming the coordinates & the normal to the vertex in the 3D world
             var point3dWorld = Vector3.TransformCoordinate(vertex.Coordinates, world);
             var normal3dWorld = Vector3.TransformCoordinate(vertex.Normal, world);
-            
+
             // The transformed coordinates will be based on coordinate system
             // starting on the center of the screen. But drawing on screen normally starts
             // from top left. We then need to transform them again to have x:0, y:0 on top left.
@@ -178,27 +152,12 @@ namespace SoftwareEngine3D
             };
         }
 
-        /// <summary>
-        /// Invoke PutPixel method but does the clipping operation before.
-        /// </summary>
-        /// <param name="point"></param>
-        /// <param name="color"></param>
-        public void DrawPoint(Vector2 point, Color4 color)
-        {
-            // Clipping what's visible on screen
-            if (point.X >= 0 && point.Y >= 0 && point.X < bmp.PixelWidth && point.Y < bmp.PixelHeight)
-            {
-                // Drawing a yellow point
-                PutPixel((int)point.X, (int)point.Y, color);
-            }
-        }
-
         public void DrawPoint(Vector3 point, Color4 color)
         {
             // Clipping what's visible on screen
-            if (point.X >= 0 && point.Y >= 0 && point.X < bmp.PixelWidth && point.Y < bmp.PixelHeight)
+            if (point.X >= 0 && point.Y >= 0 && point.X < renderWidth && point.Y < renderHeight)
             {
-                // Drawing a yellow point
+                // Drawing a point
                 PutPixel((int)point.X, (int)point.Y, point.Z, color);
             }
         }
@@ -246,24 +205,26 @@ namespace SoftwareEngine3D
 
             // Thanks to current Y, we can compute the gradient to compute others values like
             // the starting X (sx) and ending X (ex) to draw between
-            // if pa.Y == pb.Y or pc.Y == pd.Y, gradient is forced to 1.
+            // if pa.Y == pb.Y or pc.Y == pd.Y, gradient is forced to 1
             var gradient1 = pa.Y != pb.Y ? (data.currentY - pa.Y) / (pb.Y - pa.Y) : 1;
             var gradient2 = pc.Y != pd.Y ? (data.currentY - pc.Y) / (pd.Y - pc.Y) : 1;
 
             int sx = (int)Interpolate(pa.X, pb.X, gradient1);
             int ex = (int)Interpolate(pc.X, pd.X, gradient2);
 
-            // Stgarting Z & ending Z
+            // starting Z & ending Z
             float z1 = Interpolate(pa.Z, pb.Z, gradient1);
             float z2 = Interpolate(pc.Z, pd.Z, gradient2);
 
-            // Drawing a line from left (sx) to right (ex)
+            // drawing a line from left (sx) to right (ex) 
             for (var x = sx; x < ex; x++)
             {
                 float gradient = (x - sx) / (float)(ex - sx);
 
                 var z = Interpolate(z1, z2, gradient);
                 var ndotl = data.ndotla;
+                // changing the color value using the cosine of the angle
+                // between the light vector and the normal vector
                 DrawPoint(new Vector3(x, data.currentY, z), color * ndotl);
             }
         }
@@ -314,12 +275,12 @@ namespace SoftwareEngine3D
             Vector3 p1 = v1.Coordinates;
             Vector3 p2 = v2.Coordinates;
             Vector3 p3 = v3.Coordinates;
-            
+
             // normal face's vector is the average normal between each vertex's normal
             // computing also the center point of the face
             Vector3 vnFace = (v1.Normal + v2.Normal + v3.Normal) / 3;
             Vector3 centerPoint = (v1.WorldCoordinates + v2.WorldCoordinates + v3.WorldCoordinates) / 3;
-            // Light position
+            // Light position 
             Vector3 lightPos = new Vector3(0, 10, 10);
             // computing the cos of the angle between the light vector and the normal vector
             // it will return a value between 0 and 1 that will be used as the intensity of the color
@@ -327,11 +288,11 @@ namespace SoftwareEngine3D
 
             var data = new ScanLineData { ndotla = ndotl };
 
-            // inverse slopes
+            // computing lines' directions
             float dP1P2, dP1P3;
 
-            // Computing inverse slopes. See:
             // http://en.wikipedia.org/wiki/Slope
+            // Computing slopes
             if (p2.Y - p1.Y > 0)
                 dP1P2 = (p2.X - p1.X) / (p2.Y - p1.Y);
             else
@@ -342,11 +303,23 @@ namespace SoftwareEngine3D
             else
                 dP1P3 = 0;
 
-            // First case: P2 is in the right side of P1-P3
+            // First case where triangles are like that:
+            // P1
+            // -
+            // -- 
+            // - -
+            // -  -
+            // -   - P2
+            // -  -
+            // - -
+            // -
+            // P3
             if (dP1P2 > dP1P3)
             {
                 for (var y = (int)p1.Y; y <= (int)p3.Y; y++)
                 {
+                    data.currentY = y;
+
                     if (y < p2.Y)
                     {
                         ProcessScanLine(data, v1, v3, v1, v2, color);
@@ -357,11 +330,23 @@ namespace SoftwareEngine3D
                     }
                 }
             }
-            // First case: P2 is in the left side of P1-P3
+            // First case where triangles are like that:
+            //       P1
+            //        -
+            //       -- 
+            //      - -
+            //     -  -
+            // P2 -   - 
+            //     -  -
+            //      - -
+            //        -
+            //       P3
             else
             {
                 for (var y = (int)p1.Y; y <= (int)p3.Y; y++)
                 {
+                    data.currentY = y;
+
                     if (y < p2.Y)
                     {
                         ProcessScanLine(data, v1, v2, v1, v3, color);
@@ -383,22 +368,30 @@ namespace SoftwareEngine3D
             for (var meshIndex = 0; meshIndex < jsonObject.meshes.Count; meshIndex++)
             {
                 var verticesArray = jsonObject.meshes[meshIndex].vertices;
+                // Faces
                 var indicesArray = jsonObject.meshes[meshIndex].indices;
+
                 var uvCount = jsonObject.meshes[meshIndex].uvCount.Value;
                 var verticesStep = 1;
 
                 // Depending of the number of texture's coordinates per vertex
-                // we're jumping in the vertices array by 6, 8 & 10 windows frame
+                // we're jumping in the vertices array  by 6, 8 & 10 windows frame
                 switch ((int)uvCount)
                 {
-                    case 0: verticesStep = 6; break;
-                    case 1: verticesStep = 8; break;
-                    case 2: verticesStep = 10; break;
+                    case 0:
+                        verticesStep = 6;
+                        break;
+                    case 1:
+                        verticesStep = 8;
+                        break;
+                    case 2:
+                        verticesStep = 10;
+                        break;
                 }
 
-                // The number of interesting vertices information for us
+                // the number of interesting vertices information for us
                 var verticesCount = verticesArray.Count / verticesStep;
-                // Number of faces is logically the size of the array divided by 3 (A, B, C)
+                // number of faces is logically the size of the array divided by 3 (A, B, C)
                 var facesCount = indicesArray.Count / 3;
                 var mesh = new Mesh(jsonObject.meshes[meshIndex].name.Value, verticesCount, facesCount);
 
@@ -412,11 +405,7 @@ namespace SoftwareEngine3D
                     var nx = (float)verticesArray[index * verticesStep + 3].Value;
                     var ny = (float)verticesArray[index * verticesStep + 4].Value;
                     var nz = (float)verticesArray[index * verticesStep + 5].Value;
-                    mesh.Vertices[index] = new Vertex
-                    {
-                        Coordinates = new Vector3(x, y, z),
-                        Normal = new Vector3(nx, ny, nz)
-                    };
+                    mesh.Vertices[index] = new Vertex { Coordinates = new Vector3(x, y, z), Normal = new Vector3(nx, ny, nz) };
                 }
 
                 // Then filling the Faces array
@@ -440,35 +429,35 @@ namespace SoftwareEngine3D
         public void Render(Camera camera, params Mesh[] meshes)
         {
             var viewMatrix = Matrix.LookAtLH(camera.Position, camera.Target, Vector3.UnitY);
-            var projectionMatrix = Matrix.PerspectiveFovRH(0.78f, (float)bmp.PixelWidth / bmp.PixelHeight, 0.01f, 1.0f);
+            var projectionMatrix = Matrix.PerspectiveFovLH(0.78f,
+                                                           (float)renderWidth / renderHeight,
+                                                           0.01f, 1.0f);
 
-            foreach (var mesh in meshes)
+            foreach (Mesh mesh in meshes)
             {
-                // Beware to apply rotation before translation
-                var worldMatrix =
-                    Matrix.RotationYawPitchRoll(mesh.Rotation.Y, mesh.Rotation.X, mesh.Rotation.Z)
-                    * Matrix.Translation(mesh.Position);
+                // Beware to apply rotation before translation 
+                var worldMatrix = Matrix.RotationYawPitchRoll(mesh.Rotation.Y, mesh.Rotation.X, mesh.Rotation.Z) *
+                                  Matrix.Translation(mesh.Position);
+
                 var transformMatrix = worldMatrix * viewMatrix * projectionMatrix;
 
-                //var faceIndex = 0;
-                //foreach (var face in mesh.Faces)
+
                 Parallel.For(0, mesh.Faces.Length, faceIndex =>
                 {
-                    uiContext.Post(_ =>
-                    {
-                        var face = mesh.Faces[faceIndex];
-                        var vertexA = mesh.Vertices[face.A];
-                        var vertexB = mesh.Vertices[face.B];
-                        var vertexC = mesh.Vertices[face.C];
+                    var face = mesh.Faces[faceIndex];
+                    var vertexA = mesh.Vertices[face.A];
+                    var vertexB = mesh.Vertices[face.B];
+                    var vertexC = mesh.Vertices[face.C];
 
-                        var pixelA = Project(vertexA, transformMatrix, worldMatrix);
-                        var pixelB = Project(vertexB, transformMatrix, worldMatrix);
-                        var pixelC = Project(vertexC, transformMatrix, worldMatrix);
+                    var pixelA = Project(vertexA, transformMatrix, worldMatrix);
+                    var pixelB = Project(vertexB, transformMatrix, worldMatrix);
+                    var pixelC = Project(vertexC, transformMatrix, worldMatrix);
 
-                        var color = 1.0f;
-                        DrawTriangle(pixelA, pixelB, pixelC, new Color4(color, color, color, 1));
-                        faceIndex++;
-                    }, null);
+                    //var color = 0.25f + (faceIndex % mesh.Faces.Length) * 0.75f / mesh.Faces.Length;
+                    var color = 1.0f;
+                    DrawTriangle(pixelA, pixelB, pixelC, new Color4(color, color, color, 1));
+
+                    faceIndex++;
                 });
             }
         }

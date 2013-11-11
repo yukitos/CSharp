@@ -34,9 +34,8 @@ namespace SoftwareEngine3D
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            var uiContext = SynchronizationContext.Current;
             WriteableBitmap bmp = new WriteableBitmap(640, 480, 96, 96, PixelFormats.Bgr32, null);
-            device = new Device(bmp, uiContext);
+            device = new Device(bmp);
             frontBuffer.Source = bmp;
 
             meshes = await device.LoadJSONFileAsync(System.IO.Path.GetFullPath("..\\..\\monkey.babylon"));
