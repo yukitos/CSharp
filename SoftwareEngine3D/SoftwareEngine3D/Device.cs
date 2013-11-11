@@ -7,27 +7,36 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using SharpDX;
+using System.Threading;
 
 namespace SoftwareEngine3D
 {
     public class Device
     {
         private byte[] backBuffer;
+        private object[] lockBuffer;
         private readonly float[] depthBuffer;
         private WriteableBitmap bmp;
         private readonly int renderWidth;
         private readonly int renderHeight;
+        private readonly SynchronizationContext uiContext;
 
-        public Device(WriteableBitmap bmp)
+        public Device(WriteableBitmap bmp, SynchronizationContext uiContext)
         {
             this.bmp = bmp;
+            this.uiContext = uiContext;
             renderWidth = bmp.PixelWidth;
             renderHeight = bmp.PixelHeight;
 
             // The back buffer size is equal to the number of pixels to draw
             // on screen (width * height) * 4 (R, G, B & Alpha values).
-            backBuffer = new byte[bmp.PixelWidth * bmp.PixelHeight * 4];
-            depthBuffer = new float[bmp.PixelWidth * bmp.PixelHeight];
+            backBuffer = new byte[renderWidth * renderHeight * 4];
+            depthBuffer = new float[renderWidth * renderHeight];
+            lockBuffer = new object[renderWidth * renderHeight];
+            for (var i = 0; i < lockBuffer.Length; i++)
+            {
+                lockBuffer[i] = new object();
+            }
         }
 
         /// <summary>
@@ -101,10 +110,13 @@ namespace SoftwareEngine3D
         {
             var index = (x + y * bmp.PixelWidth) * 4;
 
-            backBuffer[index] = (byte)(color.Blue * 255);
-            backBuffer[index + 1] = (byte)(color.Green * 255);
-            backBuffer[index + 2] = (byte)(color.Red * 255);
-            backBuffer[index + 3] = (byte)(color.Alpha * 255);
+            lock (lockBuffer[index])
+            {
+                backBuffer[index] = (byte)(color.Blue * 255);
+                backBuffer[index + 1] = (byte)(color.Green * 255);
+                backBuffer[index + 2] = (byte)(color.Red * 255);
+                backBuffer[index + 3] = (byte)(color.Alpha * 255);
+            }
         }
 
         public void PutPixel(int x, int y, float z, Color4 color)
@@ -115,17 +127,20 @@ namespace SoftwareEngine3D
             var index = (x + y * bmp.PixelWidth);
             var index4 = index * 4;
 
-            if (depthBuffer[index] < z)
+            lock (lockBuffer[index])
             {
-                return; // Discard
+                if (depthBuffer[index] < z)
+                {
+                    return; // Discard
+                }
+
+                depthBuffer[index] = z;
+
+                backBuffer[index4] = (byte)(color.Blue * 255);
+                backBuffer[index4 + 1] = (byte)(color.Green * 255);
+                backBuffer[index4 + 2] = (byte)(color.Red * 255);
+                backBuffer[index4 + 3] = (byte)(color.Alpha * 255);
             }
-
-            depthBuffer[index] = z;
-
-            backBuffer[index4] = (byte)(color.Blue * 255);
-            backBuffer[index4 + 1] = (byte)(color.Green * 255);
-            backBuffer[index4 + 2] = (byte)(color.Red * 255);
-            backBuffer[index4 + 3] = (byte)(color.Alpha * 255);
         }
 
         public void DrawPoint(Vector2 point)
@@ -135,20 +150,32 @@ namespace SoftwareEngine3D
 
         /// <summary>
         /// Transform 3D coordinates in 2D coordinates using the transformation matrix.
+        /// It also transform the same coordinates and the normal to the vertex
+        /// in the 3D world.
         /// </summary>
         /// <param name="coord"></param>
         /// <param name="transMat"></param>
         /// <returns></returns>
-        public Vector3 Project(Vector3 coord, Matrix transMat)
+        public Vertex Project(Vertex vertex, Matrix transMat, Matrix world)
         {
-            // Transforming the coordinatesm
-            var point = Vector3.TransformCoordinate(coord, transMat);
+            // Transforming the coordinates into 2D space
+            var point2d = Vector3.TransformCoordinate(vertex.Coordinates, transMat);
+            // Transforming the coordinates & the normal to the vertex in the 3D world
+            var point3dWorld = Vector3.TransformCoordinate(vertex.Coordinates, world);
+            var normal3dWorld = Vector3.TransformCoordinate(vertex.Normal, world);
+            
             // The transformed coordinates will be based on coordinate system
             // starting on the center of the screen. But drawing on screen normally starts
             // from top left. We then need to transform them again to have x:0, y:0 on top left.
-            var x = point.X * bmp.PixelWidth + bmp.PixelWidth / 2.0f;
-            var y = -point.Y * bmp.PixelHeight + bmp.PixelHeight / 2.0f;
-            return (new Vector3(x, y, point.Z));
+            var x = point2d.X * renderWidth + renderWidth / 2.0f;
+            var y = -point2d.Y * renderHeight + renderHeight / 2.0f;
+
+            return new Vertex
+            {
+                Coordinates = new Vector3(x, y, point2d.Z),
+                Normal = normal3dWorld,
+                WorldCoordinates = point3dWorld
+            };
         }
 
         /// <summary>
@@ -210,13 +237,18 @@ namespace SoftwareEngine3D
         /// <param name="pc"></param>
         /// <param name="pd"></param>
         /// <param name="color"></param>
-        void ProcessScanLine(int y, Vector3 pa, Vector3 pb, Vector3 pc, Vector3 pd, Color4 color)
+        void ProcessScanLine(ScanLineData data, Vertex va, Vertex vb, Vertex vc, Vertex vd, Color4 color)
         {
+            Vector3 pa = va.Coordinates;
+            Vector3 pb = vb.Coordinates;
+            Vector3 pc = vc.Coordinates;
+            Vector3 pd = vd.Coordinates;
+
             // Thanks to current Y, we can compute the gradient to compute others values like
             // the starting X (sx) and ending X (ex) to draw between
             // if pa.Y == pb.Y or pc.Y == pd.Y, gradient is forced to 1.
-            var gradient1 = pa.Y != pb.Y ? (y - pa.Y) / (pb.Y - pa.Y) : 1;
-            var gradient2 = pc.Y != pd.Y ? (y - pc.Y) / (pd.Y - pc.Y) : 1;
+            var gradient1 = pa.Y != pb.Y ? (data.currentY - pa.Y) / (pb.Y - pa.Y) : 1;
+            var gradient2 = pc.Y != pd.Y ? (data.currentY - pc.Y) / (pd.Y - pc.Y) : 1;
 
             int sx = (int)Interpolate(pa.X, pb.X, gradient1);
             int ex = (int)Interpolate(pc.X, pd.X, gradient2);
@@ -231,7 +263,8 @@ namespace SoftwareEngine3D
                 float gradient = (x - sx) / (float)(ex - sx);
 
                 var z = Interpolate(z1, z2, gradient);
-                DrawPoint(new Vector3(x, y, z), color);
+                var ndotl = data.ndotla;
+                DrawPoint(new Vector3(x, data.currentY, z), color * ndotl);
             }
         }
 
@@ -242,25 +275,57 @@ namespace SoftwareEngine3D
             v1 = temp;
         }
 
-        public void DrawTriangle(Vector3 p1, Vector3 p2, Vector3 p3, Color4 color)
+        float ComputeNDotL(Vector3 vertex, Vector3 normal, Vector3 lightPosition)
+        {
+            var lightDirection = lightPosition - vertex;
+
+            normal.Normalize();
+            lightDirection.Normalize();
+
+            return Math.Max(0, Vector3.Dot(normal, lightDirection));
+        }
+
+        public void DrawTriangle(Vertex v1, Vertex v2, Vertex v3, Color4 color) 
         {
             // Sorting the points in order to always have this order on screen p1, p2 & p3
             // with p1 always up (thus having the Y the lowest possible to be near the top screen)
             // then p2 between p1 & p3
-            if (p1.Y > p2.Y)
+            if (v1.Coordinates.Y > v2.Coordinates.Y)
             {
-                Swap(ref p1, ref p2);
+                var temp = v2;
+                v2 = v1;
+                v1 = temp;
             }
 
-            if (p2.Y > p3.Y)
+            if (v2.Coordinates.Y > v3.Coordinates.Y)
             {
-                Swap(ref p3, ref p2);
+                var temp = v2;
+                v2 = v3;
+                v3 = temp;
             }
 
-            if (p1.Y > p2.Y)
+            if (v1.Coordinates.Y > v2.Coordinates.Y)
             {
-                Swap(ref p1, ref p2);
+                var temp = v2;
+                v2 = v1;
+                v1 = temp;
             }
+
+            Vector3 p1 = v1.Coordinates;
+            Vector3 p2 = v2.Coordinates;
+            Vector3 p3 = v3.Coordinates;
+            
+            // normal face's vector is the average normal between each vertex's normal
+            // computing also the center point of the face
+            Vector3 vnFace = (v1.Normal + v2.Normal + v3.Normal) / 3;
+            Vector3 centerPoint = (v1.WorldCoordinates + v2.WorldCoordinates + v3.WorldCoordinates) / 3;
+            // Light position
+            Vector3 lightPos = new Vector3(0, 10, 10);
+            // computing the cos of the angle between the light vector and the normal vector
+            // it will return a value between 0 and 1 that will be used as the intensity of the color
+            float ndotl = ComputeNDotL(centerPoint, vnFace, lightPos);
+
+            var data = new ScanLineData { ndotla = ndotl };
 
             // inverse slopes
             float dP1P2, dP1P3;
@@ -284,11 +349,11 @@ namespace SoftwareEngine3D
                 {
                     if (y < p2.Y)
                     {
-                        ProcessScanLine(y, p1, p3, p1, p2, color);
+                        ProcessScanLine(data, v1, v3, v1, v2, color);
                     }
                     else
                     {
-                        ProcessScanLine(y, p1, p3, p2, p3, color);
+                        ProcessScanLine(data, v1, v3, v2, v3, color);
                     }
                 }
             }
@@ -299,11 +364,11 @@ namespace SoftwareEngine3D
                 {
                     if (y < p2.Y)
                     {
-                        ProcessScanLine(y, p1, p2, p1, p3, color);
+                        ProcessScanLine(data, v1, v2, v1, v3, color);
                     }
                     else
                     {
-                        ProcessScanLine(y, p2, p3, p1, p3, color);
+                        ProcessScanLine(data, v2, v3, v1, v3, color);
                     }
                 }
             }
@@ -343,7 +408,15 @@ namespace SoftwareEngine3D
                     var x = (float)verticesArray[index * verticesStep].Value;
                     var y = (float)verticesArray[index * verticesStep + 1].Value;
                     var z = (float)verticesArray[index * verticesStep + 2].Value;
-                    mesh.Vertices[index] = new Vector3(x, y, z);
+                    // Loading the vertex normal exported by Blender
+                    var nx = (float)verticesArray[index * verticesStep + 3].Value;
+                    var ny = (float)verticesArray[index * verticesStep + 4].Value;
+                    var nz = (float)verticesArray[index * verticesStep + 5].Value;
+                    mesh.Vertices[index] = new Vertex
+                    {
+                        Coordinates = new Vector3(x, y, z),
+                        Normal = new Vector3(nx, ny, nz)
+                    };
                 }
 
                 // Then filling the Faces array
@@ -377,21 +450,26 @@ namespace SoftwareEngine3D
                     * Matrix.Translation(mesh.Position);
                 var transformMatrix = worldMatrix * viewMatrix * projectionMatrix;
 
-                var faceIndex = 0;
-                foreach (var face in mesh.Faces)
+                //var faceIndex = 0;
+                //foreach (var face in mesh.Faces)
+                Parallel.For(0, mesh.Faces.Length, faceIndex =>
                 {
-                    var vertexA = mesh.Vertices[face.A];
-                    var vertexB = mesh.Vertices[face.B];
-                    var vertexC = mesh.Vertices[face.C];
+                    uiContext.Post(_ =>
+                    {
+                        var face = mesh.Faces[faceIndex];
+                        var vertexA = mesh.Vertices[face.A];
+                        var vertexB = mesh.Vertices[face.B];
+                        var vertexC = mesh.Vertices[face.C];
 
-                    var pixelA = Project(vertexA, transformMatrix);
-                    var pixelB = Project(vertexB, transformMatrix);
-                    var pixelC = Project(vertexC, transformMatrix);
+                        var pixelA = Project(vertexA, transformMatrix, worldMatrix);
+                        var pixelB = Project(vertexB, transformMatrix, worldMatrix);
+                        var pixelC = Project(vertexC, transformMatrix, worldMatrix);
 
-                    var color = 0.25f + (faceIndex % mesh.Faces.Length) * 0.75f / mesh.Faces.Length;
-                    DrawTriangle(pixelA, pixelB, pixelC, new Color4(color, color, color, 1));
-                    faceIndex++;
-                }
+                        var color = 1.0f;
+                        DrawTriangle(pixelA, pixelB, pixelC, new Color4(color, color, color, 1));
+                        faceIndex++;
+                    }, null);
+                });
             }
         }
     }

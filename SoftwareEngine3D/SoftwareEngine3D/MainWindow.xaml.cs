@@ -13,6 +13,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using SharpDX;
+using System.Threading;
 
 namespace SoftwareEngine3D
 {
@@ -22,9 +23,9 @@ namespace SoftwareEngine3D
     public partial class MainWindow : Window
     {
         private Device device;
-        //private Mesh mesh = new Mesh("Cube", 8, 12);
         private Mesh[] meshes;
         private Camera camera = new Camera();
+        private DateTime previousDate;
 
         public MainWindow()
         {
@@ -33,8 +34,9 @@ namespace SoftwareEngine3D
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
+            var uiContext = SynchronizationContext.Current;
             WriteableBitmap bmp = new WriteableBitmap(640, 480, 96, 96, PixelFormats.Bgr32, null);
-            device = new Device(bmp);
+            device = new Device(bmp, uiContext);
             frontBuffer.Source = bmp;
 
             meshes = await device.LoadJSONFileAsync(System.IO.Path.GetFullPath("..\\..\\monkey.babylon"));
@@ -47,6 +49,14 @@ namespace SoftwareEngine3D
 
         private void CompositionTarget_Rendering(object sender, EventArgs e)
         {
+            // FPS
+            var now = DateTime.Now;
+            var currentFps = 1000.0 / (now - previousDate).TotalMilliseconds;
+            previousDate = now;
+
+            fps.Text = string.Format("{0:0.00} fps", currentFps);
+
+            // Rendering loop
             device.Clear(0, 0, 0, 255);
 
             foreach (var mesh in meshes)
