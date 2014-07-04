@@ -4,6 +4,5 @@
              xmlns:prop="clr-namespace:Clipboard2Word.Properties"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-        <prop:Resources x:Key="resources"/>
     </Application.Resources>
 </Application>

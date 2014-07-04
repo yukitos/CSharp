@@ -13,6 +13,7 @@ namespace Clipboard2Word
 
         public MainWindow()
         {
+            Resources.Add("resources", new Properties.Resources());
             InitializeComponent();
             model = new MainWindowModel();
             this.DataContext = model;
