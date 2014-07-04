@@ -1,0 +1,9 @@
+﻿<Application x:Class="Clipboard2Word.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:prop="clr-namespace:Clipboard2Word.Properties"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <prop:Resources x:Key="resources"/>
+    </Application.Resources>
+</Application>
