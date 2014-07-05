@@ -19,17 +19,27 @@ namespace Clipboard2Word
 
         public MainWindowModel()
         {
-            excel = new Excel.Application();
-            excel.Visible = true;
             MenuItem_FileOpen = new RelayCommand(_ => OnMenuItem_FileOpen());
         }
 
         public string FileName { get; private set; }
 
-        public void InitializeClipboardWatcher(Window window)
+        public bool Initialize(Window window)
         {
-            watcher = new ClipboardWatcher(new WindowInteropHelper(window).Handle);
-            watcher.DrawClipboard += OnDrawClipboard;
+            try
+            {
+                excel = new Excel.Application();
+                excel.Visible = true;
+                watcher = new ClipboardWatcher(new WindowInteropHelper(window).Handle);
+                watcher.DrawClipboard += OnDrawClipboard;
+
+                return true;
+            }
+            catch (Exception)
+            {
+                MessageBox.Show(Properties.Resources.Error_ExcelNotInstalled, "ERROR", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
         }
 
         private void OnDrawClipboard(object sender, EventArgs e)

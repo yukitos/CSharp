@@ -21,7 +21,11 @@ namespace Clipboard2Word
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            model.InitializeClipboardWatcher(this);
+            if (!model.Initialize(this))
+            {
+                Application.Current.Shutdown(1);
+                return;
+            }
         }
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
